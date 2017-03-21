@@ -64,6 +64,21 @@ defmodule EtFaopenmon do
     es(tmin, tmax) - ea(tmin, tmax, hrmin, hrmax)
   end
 
+@doc """
+  Mean saturation vapour pressure (es)
+  """
+  def es(tmin, tmax) do
+    Float.round((saturation_vapour_pressure(tmax) + saturation_vapour_pressure(tmin)) / 2, 3)
+
+  end
+
+  @doc """
+Actual vapour pressure (ea) derived from relative humidity data
+  """
+  def ea(tmin, tmax, hrmin, hrmax) do
+    Float.round(((saturation_vapour_pressure(tmin) * (hrmax / 100)) + (saturation_vapour_pressure(tmax) * (hrmin / 100))) / 2, 3)
+  end
+
   @doc """
   Saturation vapour pressure (eo)
   """
@@ -72,39 +87,69 @@ defmodule EtFaopenmon do
     Float.round(0.6108 * :math.pow(2.7183, power), 3)
   end
 
-  @doc """
-  Mean saturation vapour pressure (es)
-  """
-  def es(tmin, tmax) do
-    IO.inspect Float.round((saturation_vapour_pressure(tmax) + saturation_vapour_pressure(tmin)) / 2, 3)
-
-  end
+#  RADIATION
 
   @doc """
-  Actual vapour pressure (ea) derived from dewpoint temperature
+  Extraterrestrial radiation for daily periods (Ra)
   """
-  def ea(tmin, tmax, hrmin, hrmax) do
-    Float.round(((saturation_vapour_pressure(tmin) * (hrmax / 100)) + (saturation_vapour_pressure(tmax) * (hrmin / 100))) / 2, 3)
+  def extrater_radiation(day, latitude, solar_decimation) do
+    
   end
 
   @doc """
   Number of the day in the year (J)
   """
-  def day_number(day, month, year, _is_leap) when month < 3 do
-    Float.floor(275 * month/9 - 30 + day)
+
+  def day_number(day, month, year) when month < 3 do
+    day_number_l(day, month, year, :is_not)
   end
 
-  def day_number(day, month, year, is_leap) when month > 2 and is_leap == true do
+  def day_number(day, month, year) when month > 2 do
+    is_leap = leap_year?(year)
+    day_number_l(day, month, year, is_leap)
+  end
+
+
+  defp day_number_l(day, month, year, false) do
+    Float.floor(275 * month/9 - 30 + day) - 2
+  end
+
+  defp day_number_l(day, month, year, true) do
     Float.floor(275 * month/9 - 30 + day) - 1
   end
 
-  def day_number(day, month, year, _is_leap) do
-    Float.floor(275 * month/9 - 30 + day) - 2
+  defp day_number_l(day, month, year, _is_leap) do
+    Float.floor.(275 * month/9 - 30 + day)
   end
+
 
   def leap_year?(year) do
     rem(year, 4) == 0 and ((rem(year, 100) != 0) or (rem(year, 400) ==0))
   end
 
+  @doc """
+  Conversion from decimal degrees to radians used for latitude
+  """
+  def decimal_degrees_to_radians(grad, min, "N") do
+    degrees = grad + min / 60
+    Float.round((:math.pi / 180) * degrees, 3)
+  end
+
+  def decimal_degrees_to_radians(grad, min, "S") do
+    degrees = grad + min / 60
+    Float.round(-(:math.pi / 180) * degrees, 3)
+  end
+
+  @doc """
+  Inverse relative distance Earth-Sun, dr
+  """
+  def ir_distance(day, month, year) do
+    Float.round(1 + 0.033 * :math.cos((2 * :math.pi * day_number(day, month, year))/365), 3)
+  end
+
+  @doc """
+  Solar declination, d
+  """
+  def solar_declination(day, month, year)
 
 end

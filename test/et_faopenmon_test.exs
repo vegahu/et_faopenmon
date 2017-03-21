@@ -50,7 +50,24 @@ defmodule EtFaopenmonTest do
   end
 
   test "day number" do
-    assert EtFaopenmon.day_number(6, 7, 2015, EtFaopenmon.leap_year?(2015)) == 187
+    assert EtFaopenmon.day_number(6, 7, 2015) == 187
   end
+
+  #test "Extraterrestrial radiation for daily periods (Ra)" do
+  #  assert EtFaopenmon.extrater_radiation(day, latitude, solar_decimation) == 32.2 
+  #end
+
+  test "Conversion of latitude in degrees and minutes to radians" do
+    assert EtFaopenmon.decimal_degrees_to_radians(13, 44, "N") == 0.240
+  end
+
+  test "inverse relative distance Earth-Sun, dr" do
+    assert EtFaopenmon.ir_distance(3, 9, 2015) == 0.985
+  end
+
+
+
+
+
 
 end
