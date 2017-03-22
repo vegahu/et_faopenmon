@@ -53,9 +53,7 @@ defmodule EtFaopenmonTest do
     assert EtFaopenmon.day_number(6, 7, 2015) == 187
   end
 
-  #test "Extraterrestrial radiation for daily periods (Ra)" do
-  #  assert EtFaopenmon.extrater_radiation(day, latitude, solar_decimation) == 32.2 
-  #end
+# RADIATION
 
   test "Conversion of latitude in degrees and minutes to radians" do
     assert EtFaopenmon.decimal_degrees_to_radians(20, 0, "S") == -0.349
@@ -72,6 +70,31 @@ defmodule EtFaopenmonTest do
   test "sunset hour angle, ws" do
     assert EtFaopenmon.sunset_angle(20, 0, "S", 3, 9, 2015) == 1.527
   end  
+
+  test "Daylight hours (N)" do
+    assert EtFaopenmon.daylight_hours(20, 0, "S", 3, 9, 2015) == 11.7
+  end
+
+  test "Extraterrestrial radiation for daily periods (Ra)" do
+    assert EtFaopenmon.extrater_radiation(20, 0, "S", 3, 9, 2015, 0.120) == 32.2 
+  end
+
+  test "Solar radiation (Rs)" do
+    assert EtFaopenmon.solar_radiation(22, 54, "S", 15, 5, 2015, 7.1, 0.329) == 14.4
+  end
+
+  test "  Clear-sky solar radiation (Rso)" do
+    assert EtFaopenmon.solar_radiation_cs(22, 54, "S", 15, 5, 2015, 0.329, 100) == 18.9
+  end
+
+  test "Net solar or net shortwave radiation (Rns)" do
+    assert EtFaopenmon.netsolar_radiation(22, 54, "S", 15, 5, 2015, 7.1, 0.329, 0.23) == 11.1
+  end
+
+  test "Net longwave radiation (Rnl)" do
+    assert EtFaopenmon.netlongwave_radiation(19.1, 25.1, 63, 84, 22, 54, "S", 15, 5, 2015, 7.1, 0.329, 100) == 3.5
+  end
+
 
 
 end

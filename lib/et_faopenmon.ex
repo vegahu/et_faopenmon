@@ -92,8 +92,71 @@ Actual vapour pressure (ea) derived from relative humidity data
   @doc """
   Extraterrestrial radiation for daily periods (Ra)
   """
-  def extrater_radiation(day, latitude, solar_decimation) do
-    
+  def extrater_radiation(grad, min, lat, day, month, year, solar_decimation) do
+    latitude = decimal_degrees_to_radians(grad, min, lat)
+    day_numb = day_number(day, month, year)
+    distance_r = ir_distance(day, month, year)
+    solar_dec = solar_declination(day, month, year)
+    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
+    g_sc = 0.0820
+    Float.round((24 * 60 / :math.pi) * g_sc * distance_r * (sunset_ha * :math.sin(latitude) * :math.sin(solar_dec) + :math.cos(latitude) * :math.cos(solar_dec) * :math.sin(sunset_ha)) ,1)    
+  end
+
+  @doc """
+  Solar radiation (Rs) 
+
+  Where no actual solar radiation data are available and no calibration has been carried out for improved as and bs parameters, the values as = 0.25 and bs = 0.50 are recommended.
+
+  """
+  def solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation) do
+    latitude = decimal_degrees_to_radians(grad, min, lat)
+    day_numb = day_number(day, month, year)
+    distance_r = ir_distance(day, month, year)
+    solar_dec = solar_declination(day, month, year)
+    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
+    g_sc = 0.0820
+    daylight_h = daylight_hours(grad, min, lat, day, month, year)
+    ext_radiation = extrater_radiation(grad, min, lat, day, month, year, solar_decimation)
+    Float.round((0.25 + (0.50 * (sunshine_hours / daylight_h))) * ext_radiation, 1)
+  end
+
+  @doc """
+  Clear-sky solar radiation (Rso) 
+
+  when calibrated values for as and bs are not available:
+  
+  """
+  def solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation) do
+    Float.round((0.75 + 2.0e-5 * elevation) * extrater_radiation(grad, min, lat, day, month, year, solar_decimation), 1)
+  end
+
+  @doc """
+  Net solar or net shortwave radiation (Rns)
+  """
+  def netsolar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo) do
+    Float.round((1 - albedo) * solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation), 1)
+  end
+
+  @doc """
+  Net longwave radiation (Rnl)
+  """
+  def netlongwave_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, elevation) do
+    solar_rad = solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation)
+    solar_rad_clear = solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation)
+    s = 4.903e-9   
+    fact_1 = s * (:math.pow(tmax, 4) + :math.pow(tmin, 4)) / 2
+    fact_2 = 0.34 - (0.14 * :math.sqrt(ea(tmin, tmax, hrmin, hrmax)))
+    fact_3 = 1.35 * (solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation / solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation) - 0.35))
+    Float.round(fact_1 * fact_2 * fact_3, 1)
+  end
+
+
+  @doc """
+  Daylight hours (N)
+  """
+  def daylight_hours(grad, min, lat, day, month, year) do
+    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
+    Float.round(24 * sunset_ha / :math.pi, 1)
   end
 
   @doc """
@@ -157,9 +220,12 @@ Actual vapour pressure (ea) derived from relative humidity data
   """
 
   def sunset_angle(grad, min, lat, day, month, year) do
-    Float.round(:math.acos(-1 * (:math.tan(decimal_degrees_to_radians(grad, min, lat)) * :math.tan(solar_declination(day, month, year)))))
+    Float.round(:math.acos(-1 * (:math.tan(decimal_degrees_to_radians(grad, min, lat)) * :math.tan(solar_declination(day, month, year)))), 3)
     
   end
+
+
+
 
 
 end
