@@ -58,16 +58,20 @@ defmodule EtFaopenmonTest do
   #end
 
   test "Conversion of latitude in degrees and minutes to radians" do
-    assert EtFaopenmon.decimal_degrees_to_radians(13, 44, "N") == 0.240
+    assert EtFaopenmon.decimal_degrees_to_radians(20, 0, "S") == -0.349
   end
 
   test "inverse relative distance Earth-Sun, dr" do
     assert EtFaopenmon.ir_distance(3, 9, 2015) == 0.985
   end
 
+  test "Solar declination, d" do
+    assert EtFaopenmon.solar_declination(3, 9, 2015) == 0.120
+  end
 
-
-
+  test "sunset hour angle, ws" do
+    assert EtFaopenmon.sunset_angle(20, 0, "S", 3, 9, 2015) == 1.527
+  end  
 
 
 end

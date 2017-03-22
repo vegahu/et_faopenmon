@@ -105,8 +105,7 @@ Actual vapour pressure (ea) derived from relative humidity data
   end
 
   def day_number(day, month, year) when month > 2 do
-    is_leap = leap_year?(year)
-    day_number_l(day, month, year, is_leap)
+    day_number_l(day, month, year, leap_year?(year))
   end
 
 
@@ -122,8 +121,7 @@ Actual vapour pressure (ea) derived from relative humidity data
     Float.floor.(275 * month/9 - 30 + day)
   end
 
-
-  def leap_year?(year) do
+  defp leap_year?(year) do
     rem(year, 4) == 0 and ((rem(year, 100) != 0) or (rem(year, 400) ==0))
   end
 
@@ -137,7 +135,7 @@ Actual vapour pressure (ea) derived from relative humidity data
 
   def decimal_degrees_to_radians(grad, min, "S") do
     degrees = grad + min / 60
-    Float.round(-(:math.pi / 180) * degrees, 3)
+    - Float.round((:math.pi / 180) * degrees, 3)
   end
 
   @doc """
@@ -150,6 +148,18 @@ Actual vapour pressure (ea) derived from relative humidity data
   @doc """
   Solar declination, d
   """
-  def solar_declination(day, month, year)
+  def solar_declination(day, month, year) do
+    Float.round(0.409 * :math.sin(((2 * :math.pi * day_number(day, month, year))/365) - 1.39), 3)
+  end
+
+  @doc """
+  sunset hour angle, ws
+  """
+
+  def sunset_angle(grad, min, lat, day, month, year) do
+    Float.round(:math.acos(-1 * (:math.tan(decimal_degrees_to_radians(grad, min, lat)) * :math.tan(solar_declination(day, month, year)))))
+    
+  end
+
 
 end
