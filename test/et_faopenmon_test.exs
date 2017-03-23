@@ -15,11 +15,11 @@ defmodule EtFaopenmonTest do
     # Tmin = 12,3 ºC
     # RHmax = 84%
     # RHmin = 63%
-    # Wind speed measured at 10 m height = 10 km/h
+    # Wind speed measured at 10 m height = 10 km/h = 
     # Actual hours of sunshine (n) = 9,25 h
 
    # assert EtFaopenmon.et_o(12.3, 21.5, 63, 84, 10, 9.25, 50, 48, "N", 6, 6, 2015, 100) == 3.84
-    assert EtFaopenmon.et_o(19.2, 26.5, 81, 81, 0.8, 3.3, 5, 34, "S", 15, 6, 2015, 100) == 3.84
+    assert EtFaopenmon.et_o(12.3, 21.5, 63, 84, 10, 9.25, 50, 48, "N", 6, 7, 2015, 100) == 3.84
   end
 
   test "km/h to m/s" do
