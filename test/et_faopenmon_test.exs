@@ -18,7 +18,8 @@ defmodule EtFaopenmonTest do
     # Wind speed measured at 10 m height = 10 km/h
     # Actual hours of sunshine (n) = 9,25 h
 
-    assert EtFaopenmon.et_o(100, 21.5, 12.3, 84, 63, 10, 9.25) == nil #3.88
+   # assert EtFaopenmon.et_o(12.3, 21.5, 63, 84, 10, 9.25, 50, 48, "N", 6, 6, 2015, 100) == 3.84
+    assert EtFaopenmon.et_o(19.2, 26.5, 81, 81, 0.8, 3.3, 5, 34, "S", 15, 6, 2015, 100) == 3.84
   end
 
   test "km/h to m/s" do
@@ -92,9 +93,10 @@ defmodule EtFaopenmonTest do
   end
 
   test "Net longwave radiation (Rnl)" do
-    assert EtFaopenmon.netlongwave_radiation(19.1, 25.1, 63, 84, 22, 54, "S", 15, 5, 2015, 7.1, 0.329, 100) == 3.5
+    assert EtFaopenmon.netlongwave_radiation(19.1, 25.1, 63, 84, 22, 54, "S", 15, 5, 2015, 7.1, 0.329, 100) == 3.7
   end
 
-
-
+  test "Net radiation (Rn)" do
+    assert EtFaopenmon.net_radiation(19.1, 25.1, 63, 84, 22, 54, "S", 15, 5, 2015, 7.1, 0.329, 0.23, 100) == 7.4
+  end  
 end

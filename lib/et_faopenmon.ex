@@ -1,8 +1,17 @@
 defmodule EtFaopenmon do
 
 
-  def et_o(alt, tmax, tmin, rhmax, rhmin, ws, sh) do
-
+  def et_o(tmin, tmax, rhmax, rhmin, wind_speed, sunshine_hours, grad, min, lat, day, month, year, elevation) do
+    mean_temp = tmean(tmin, tmax)
+    dlt = delta(mean_temp)
+    wind_speed_2 = adjust_wind_speed(wind_speed, elevation)
+    gamm = gamma(atmosferic_pressure(elevation))
+    solar_decl = solar_declination(day, month, year)
+    albedo = 0.23
+    num_1 = 0.408 * dlt * (net_radiation(tmin, tmax, rhmin, rhmax, grad, min, lat, day, month, year, sunshine_hours, solar_decl, albedo, elevation))
+    num_2 = (gamm * 900 * wind_speed_2 * (es(tmin, tmax) - ea(tmin, tmax, rhmin, rhmax))) / (mean_temp + 273)
+    den = dlt + (gamm * (1 + 0.34 * wind_speed_2))
+    Float.round((num_1 + num_2) / den, 2)
   end
 
   @doc """
@@ -13,12 +22,13 @@ defmodule EtFaopenmon do
   end
 
   @doc """
+  (u2)
   Transform the wind speed at "elevation" meters above the surface, because  for the calculation of evapotranspiration wind speed measured at 2 m above the surface is required.
   Units: m/s
   """
-  def adjust_wind_speed(windspeed, elevation) do
+  def adjust_wind_speed(wind_speed, elevation) do
     conversion_factor = 4.87 / :math.log(67.8 * elevation - 5.42)
-    Float.round(windspeed * conversion_factor, 3)
+    Float.round(wind_speed * conversion_factor, 3)
   end
 
   @doc """
@@ -36,17 +46,17 @@ defmodule EtFaopenmon do
   @doc """
   Mean daily air temperature
   """
-  def tmean(tmax, tmin) do
+  def tmean(tmin, tmax) do
     (tmax + tmin)/2
   end
 
   @doc """
   Slope of saturation vapour pressure curve (D)
   """
-  def delta(temperature) do
-    power = 17.27 * temperature / (temperature + 237.3)
+  def delta(mean_temp) do
+    power = 17.27 * mean_temp / (mean_temp + 237.3)
     numerator = 4098 * 0.6108 * :math.pow(2.7183, power)
-    denominator = :math.pow(temperature + 237.3, 2)
+    denominator = :math.pow(mean_temp + 237.3, 2)
     Float.round(numerator / denominator, 3)
   end
 
@@ -64,12 +74,11 @@ defmodule EtFaopenmon do
     es(tmin, tmax) - ea(tmin, tmax, hrmin, hrmax)
   end
 
-@doc """
+  @doc """
   Mean saturation vapour pressure (es)
   """
   def es(tmin, tmax) do
     Float.round((saturation_vapour_pressure(tmax) + saturation_vapour_pressure(tmin)) / 2, 3)
-
   end
 
   @doc """
@@ -104,9 +113,8 @@ Actual vapour pressure (ea) derived from relative humidity data
 
   @doc """
   Solar radiation (Rs) 
-
-  Where no actual solar radiation data are available and no calibration has been carried out for improved as and bs parameters, the values as = 0.25 and bs = 0.50 are recommended.
-
+  Where no actual solar radiation data are available and no calibration has been carried out 
+  for improved as and bs parameters, the values as = 0.25 and bs = 0.50 are recommended.
   """
   def solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation) do
     latitude = decimal_degrees_to_radians(grad, min, lat)
@@ -143,12 +151,24 @@ Actual vapour pressure (ea) derived from relative humidity data
   def netlongwave_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, elevation) do
     solar_rad = solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation)
     solar_rad_clear = solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation)
+    tmink = tmin + 273.16
+    tmaxk = tmax + 273.16  
     s = 4.903e-9   
-    fact_1 = s * (:math.pow(tmax, 4) + :math.pow(tmin, 4)) / 2
+    fact_1 = s * (:math.pow(tmaxk, 4) + :math.pow(tmink, 4)) / 2
     fact_2 = 0.34 - (0.14 * :math.sqrt(ea(tmin, tmax, hrmin, hrmax)))
-    fact_3 = 1.35 * (solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation / solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation) - 0.35))
+    fact_3 = (1.35 * (solar_rad / solar_rad_clear)) - 0.35
     Float.round(fact_1 * fact_2 * fact_3, 1)
   end
+
+  @doc """
+  Net radiation (Rn)
+  """
+  def net_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo, elevation) do
+    netsolar_rad = netsolar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo)
+    netlongw_rad = netlongwave_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, elevation)
+    Float.round(netsolar_rad - netlongw_rad, 1)
+  end
+
 
 
   @doc """
@@ -223,9 +243,5 @@ Actual vapour pressure (ea) derived from relative humidity data
     Float.round(:math.acos(-1 * (:math.tan(decimal_degrees_to_radians(grad, min, lat)) * :math.tan(solar_declination(day, month, year)))), 3)
     
   end
-
-
-
-
 
 end
