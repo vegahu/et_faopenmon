@@ -1,17 +1,35 @@
 defmodule EtFaopenmon do
 
 
-  def et_o(tmin, tmax, rhmax, rhmin, wind_speed, sunshine_hours, grad, min, lat, day, month, year, elevation) do
-    mean_temp = tmean(tmin, tmax)
-    dlt = delta(mean_temp)
-    wind_speed_2 = adjust_wind_speed(wind_speed, elevation)
-    gamm = gamma(atmosferic_pressure(elevation))
-    solar_decl = solar_declination(day, month, year)
+  def et_o(tmin, tmax, rhmin, rhmax, wind_speed, sunshine_hours, grad, min, lat, day, month, year, elevation) do
+    wind_speed_2m = adjust_wind_speed(to_meters_per_second(wind_speed)) 
+    at_pressure = atmosferic_pressure(elevation) 
+    gamm = gamma(at_pressure) 
+    mean_temp = tmean(tmin, tmax) 
+    saturation_vp_min = saturation_vapour_pressure(tmin) 
+    saturation_vp_max = saturation_vapour_pressure(tmax) 
+    mean_saturation_vp = es(saturation_vp_min, saturation_vp_max) 
+    delt = delta(mean_temp) 
+    actual_saturation_vp = ea(rhmin, rhmax, saturation_vp_min, saturation_vp_max) 
+    deficit_vp = vapor_pressure_deficit(mean_saturation_vp, actual_saturation_vp) 
     albedo = 0.23
-    num_1 = 0.408 * dlt * (net_radiation(tmin, tmax, rhmin, rhmax, grad, min, lat, day, month, year, sunshine_hours, solar_decl, albedo, elevation))
-    num_2 = (gamm * 900 * wind_speed_2 * (es(tmin, tmax) - ea(tmin, tmax, rhmin, rhmax))) / (mean_temp + 273)
-    den = dlt + (gamm * (1 + 0.34 * wind_speed_2))
-    Float.round((num_1 + num_2) / den, 2)
+    day_numbr = day_number(day, month, year)
+    latitude = decimal_degrees_to_radians(grad, min, lat)
+    inv_r_distance = ir_distance(day_numbr)
+    solar_dec = solar_declination(day_numbr)
+    sunset_angl = sunset_angle(latitude, solar_dec)
+    ext_radiation = extrater_radiation(inv_r_distance, sunset_angl, solar_dec, latitude)
+    dl_hours = daylight_hours(sunset_angl)
+    solar_rad = solar_radiation(sunshine_hours, dl_hours, ext_radiation)
+    solar_rad_cs = solar_radiation_cs(elevation, ext_radiation)
+    solar_rad_net = netsolar_radiation(solar_rad, albedo)
+    solar_rad_net_lw = netlongwave_radiation(solar_rad, solar_rad_cs, to_kelvin(tmin), to_kelvin(tmax), actual_saturation_vp)
+    net_rad = net_radiation(solar_rad_net, solar_rad_net_lw)
+
+    numerator = 0.408 * delt * net_rad + (gamm * 900 * wind_speed_2m * deficit_vp) / (mean_temp + 273)
+    denominator = delt + gamm * (1 + 0.34 * wind_speed_2m)
+
+    Float.round(numerator / denominator, 2)
   end
 
   @doc """
@@ -21,13 +39,17 @@ defmodule EtFaopenmon do
     Float.round((kilometers_per_hour * 1000) / 3600, 2)
   end
 
+  def to_kelvin(temp) do
+    temp + 273.16
+  end
+
   @doc """
   (u2)
-  Transform the wind speed at "elevation" meters above the surface, because  for the calculation of evapotranspiration wind speed measured at 2 m above the surface is required.
+  Transform the wind speed at the standard 10 meters above the surface in meteorology , because  for the calculation of evapotranspiration wind speed measured at 2 m above the surface is required.
   Units: m/s
   """
-  def adjust_wind_speed(wind_speed, elevation) do
-    conversion_factor = 4.87 / :math.log(67.8 * elevation - 5.42)
+  def adjust_wind_speed(wind_speed) do
+    conversion_factor = 4.87 / :math.log(67.8 * 10 - 5.42)
     Float.round(wind_speed * conversion_factor, 3)
   end
 
@@ -40,14 +62,14 @@ defmodule EtFaopenmon do
 
   """
   def atmosferic_pressure(elevation) do
-    Float.round( 101.3 * :math.pow((293 - 0.0065 * elevation) / 293, 5.26),1)
+    Float.round( 101.3 * :math.pow((293 - 0.0065 * elevation) / 293, 5.26), 1)
   end
 
   @doc """
   Mean daily air temperature
   """
   def tmean(tmin, tmax) do
-    (tmax + tmin)/2
+    (tmax + tmin) / 2
   end
 
   @doc """
@@ -70,22 +92,22 @@ defmodule EtFaopenmon do
   @doc """
   Vapour pressure deficit (es - ea) 
   """
-  def vapor_pressure_deficit(tmin, tmax, hrmin, hrmax) do
-    es(tmin, tmax) - ea(tmin, tmax, hrmin, hrmax)
+  def vapor_pressure_deficit(mean_saturation_vp, actual_saturation_vp) do
+    Float.round(mean_saturation_vp - actual_saturation_vp, 3)
   end
 
   @doc """
   Mean saturation vapour pressure (es)
   """
-  def es(tmin, tmax) do
-    Float.round((saturation_vapour_pressure(tmax) + saturation_vapour_pressure(tmin)) / 2, 3)
+  def es(saturation_vp_min, saturation_vp_max) do
+    Float.round((saturation_vp_max + saturation_vp_min) / 2, 3)
   end
 
   @doc """
-Actual vapour pressure (ea) derived from relative humidity data
+ Actual vapour pressure (ea) derived from relative humidity data
   """
-  def ea(tmin, tmax, hrmin, hrmax) do
-    Float.round(((saturation_vapour_pressure(tmin) * (hrmax / 100)) + (saturation_vapour_pressure(tmax) * (hrmin / 100))) / 2, 3)
+  def ea(rhmin, rhmax, saturation_vp_min, saturation_vp_max) do
+    Float.round(((saturation_vp_min * rhmax / 100) + (saturation_vp_max * rhmin / 100)) / 2, 3)
   end
 
   @doc """
@@ -101,14 +123,9 @@ Actual vapour pressure (ea) derived from relative humidity data
   @doc """
   Extraterrestrial radiation for daily periods (Ra)
   """
-  def extrater_radiation(grad, min, lat, day, month, year, solar_decimation) do
-    latitude = decimal_degrees_to_radians(grad, min, lat)
-    day_numb = day_number(day, month, year)
-    distance_r = ir_distance(day, month, year)
-    solar_dec = solar_declination(day, month, year)
-    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
+  def extrater_radiation(inv_r_distance, sunset_angl, solar_dec, latitude) do
     g_sc = 0.0820
-    Float.round((24 * 60 / :math.pi) * g_sc * distance_r * (sunset_ha * :math.sin(latitude) * :math.sin(solar_dec) + :math.cos(latitude) * :math.cos(solar_dec) * :math.sin(sunset_ha)) ,1)    
+    Float.round((24 * 60 / :math.pi) * g_sc * inv_r_distance * (sunset_angl * :math.sin(latitude) * :math.sin(solar_dec) + :math.cos(latitude) * :math.cos(solar_dec) * :math.sin(sunset_angl)) ,1)    
   end
 
   @doc """
@@ -116,57 +133,43 @@ Actual vapour pressure (ea) derived from relative humidity data
   Where no actual solar radiation data are available and no calibration has been carried out 
   for improved as and bs parameters, the values as = 0.25 and bs = 0.50 are recommended.
   """
-  def solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation) do
-    latitude = decimal_degrees_to_radians(grad, min, lat)
-    day_numb = day_number(day, month, year)
-    distance_r = ir_distance(day, month, year)
-    solar_dec = solar_declination(day, month, year)
-    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
-    g_sc = 0.0820
-    daylight_h = daylight_hours(grad, min, lat, day, month, year)
-    ext_radiation = extrater_radiation(grad, min, lat, day, month, year, solar_decimation)
-    Float.round((0.25 + (0.50 * (sunshine_hours / daylight_h))) * ext_radiation, 1)
+  def solar_radiation(sunshine_hours, dl_hours, ext_radiation) do
+    Float.round((0.25 + (0.50 * (sunshine_hours / dl_hours))) * ext_radiation, 2)
   end
 
   @doc """
   Clear-sky solar radiation (Rso) 
 
-  when calibrated values for as and bs are not available:
+  when calibrated values for as and bs are not available
   
   """
-  def solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation) do
-    Float.round((0.75 + 2.0e-5 * elevation) * extrater_radiation(grad, min, lat, day, month, year, solar_decimation), 1)
+  def solar_radiation_cs(elevation, ext_radiation) do
+    Float.round((0.75 + 2.0e-5 * elevation) * ext_radiation, 1)
   end
 
   @doc """
   Net solar or net shortwave radiation (Rns)
   """
-  def netsolar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo) do
-    Float.round((1 - albedo) * solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation), 1)
+  def netsolar_radiation(solar_rad, albedo) do
+    Float.round((1 - albedo) * solar_rad, 2)
   end
 
   @doc """
   Net longwave radiation (Rnl)
   """
-  def netlongwave_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, elevation) do
-    solar_rad = solar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation)
-    solar_rad_clear = solar_radiation_cs(grad, min, lat, day, month, year, solar_decimation, elevation)
-    tmink = tmin + 273.16
-    tmaxk = tmax + 273.16  
+  def netlongwave_radiation(solar_rad, solar_radiation_cs, tmink, tmaxk, actual_saturation_vp) do  
     s = 4.903e-9   
     fact_1 = s * (:math.pow(tmaxk, 4) + :math.pow(tmink, 4)) / 2
-    fact_2 = 0.34 - (0.14 * :math.sqrt(ea(tmin, tmax, hrmin, hrmax)))
-    fact_3 = (1.35 * (solar_rad / solar_rad_clear)) - 0.35
-    Float.round(fact_1 * fact_2 * fact_3, 1)
+    fact_2 = 0.34 - (0.14 * :math.sqrt(actual_saturation_vp))
+    fact_3 = (1.35 * (solar_rad / solar_radiation_cs)) - 0.35
+    Float.round(fact_1 * fact_2 * fact_3, 2)
   end
 
   @doc """
   Net radiation (Rn)
   """
-  def net_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo, elevation) do
-    netsolar_rad = netsolar_radiation(grad, min, lat, day, month, year, sunshine_hours, solar_decimation, albedo)
-    netlongw_rad = netlongwave_radiation(tmin, tmax, hrmin, hrmax, grad, min, lat, day, month, year, sunshine_hours, solar_decimation, elevation)
-    Float.round(netsolar_rad - netlongw_rad, 1)
+  def net_radiation(solar_rad_net, solar_rad_net_lw) do
+    Float.round(solar_rad_net - solar_rad_net_lw, 2)
   end
 
 
@@ -174,9 +177,8 @@ Actual vapour pressure (ea) derived from relative humidity data
   @doc """
   Daylight hours (N)
   """
-  def daylight_hours(grad, min, lat, day, month, year) do
-    sunset_ha = sunset_angle(grad, min, lat, day, month, year)
-    Float.round(24 * sunset_ha / :math.pi, 1)
+  def daylight_hours(sunset_angl) do
+    Float.round(24 * sunset_angl / :math.pi, 1)
   end
 
   @doc """
@@ -224,24 +226,23 @@ Actual vapour pressure (ea) derived from relative humidity data
   @doc """
   Inverse relative distance Earth-Sun, dr
   """
-  def ir_distance(day, month, year) do
-    Float.round(1 + 0.033 * :math.cos((2 * :math.pi * day_number(day, month, year))/365), 3)
+  def ir_distance(day_numbr) do
+    Float.round(1 + 0.033 * :math.cos((2 * :math.pi * day_numbr)/365), 3)
   end
 
   @doc """
   Solar declination, d
   """
-  def solar_declination(day, month, year) do
-    Float.round(0.409 * :math.sin(((2 * :math.pi * day_number(day, month, year))/365) - 1.39), 3)
+  def solar_declination(day_numbr) do
+    Float.round(0.409 * :math.sin((2 * :math.pi * day_numbr / 365) - 1.39), 3)
   end
 
   @doc """
   sunset hour angle, ws
   """
 
-  def sunset_angle(grad, min, lat, day, month, year) do
-    Float.round(:math.acos(-1 * (:math.tan(decimal_degrees_to_radians(grad, min, lat)) * :math.tan(solar_declination(day, month, year)))), 3)
-    
+  def sunset_angle(latitude, solar_dec) do
+    Float.round(:math.acos(-1 * :math.tan(latitude) * :math.tan(solar_dec)), 3)
   end
 
 end
